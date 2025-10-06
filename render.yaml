@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: ds-smartcontract
+    runtime: docker
+    plan: starter
+    region: oregon
+    buildCommand: docker build -t ds-smartcontract .
+    startCommand: docker run -p $PORT:$PORT ds-smartcontract
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: CORS_ORIGIN
+        value: https://ds-smartcontract.onrender.com
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ISSUER
+        value: ds-smartcontract
+      - key: JWT_AUDIENCE
+        value: ds-smartcontract-users
+      - key: ACCESS_TOKEN_TTL
+        value: 15m
+      - key: REFRESH_TOKEN_TTL
+        value: 7d
+      - key: APP_ID
+        value: production-app
+      - key: APP_SECRET
+        generateValue: true
+      # You need to set these manually in Render dashboard:
+      - key: RPC_URL
+        sync: false
+      - key: CHAIN_ID
+        value: "11155111"
+      - key: PRIVATE_KEY
+        sync: false
+      - key: CONTRACT_ADDRESS
+        sync: false
+    healthCheckPath: /health
+    domains:
+      - ds-smartcontract.onrender.com

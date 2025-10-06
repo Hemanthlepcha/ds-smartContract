@@ -46,16 +46,28 @@ async function startServer() {
     });
 
     app.set('trust proxy', 1);
-    // Updated CORS configuration to allow localhost, Render.com, and ngrok origins
+    
+    // Environment-aware CORS configuration
     const corsOptions = {
       origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
         
-        // List of allowed origins and patterns
+        const env = getEnv();
+        
+        // Use CORS_ORIGIN from environment if set
+        if (env.CORS_ORIGIN && env.CORS_ORIGIN !== '*') {
+          const envOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
+          if (envOrigins.includes(origin)) {
+            return callback(null, true);
+          }
+        }
+        
+        // Default allowed origins for development
         const allowedOrigins = [
           'http://localhost:4000',
           'http://localhost:3000',
+          'https://ds-smartcontract.onrender.com',
           'https://ds-smartcontract1.onrender.com'
         ];
         
@@ -71,7 +83,12 @@ async function startServer() {
         }
         
         // For development, allow any localhost with any port
-        if (process.env.NODE_ENV === 'development' && origin.match(/^https?:\/\/localhost:\d+$/)) {
+        if (env.NODE_ENV === 'development' && origin.match(/^https?:\/\/localhost:\d+$/)) {
+          return callback(null, true);
+        }
+        
+        // In production, allow wildcard if CORS_ORIGIN is set to *
+        if (env.CORS_ORIGIN === '*') {
           return callback(null, true);
         }
         
