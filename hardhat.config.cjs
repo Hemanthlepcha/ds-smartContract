@@ -1,6 +1,6 @@
 require('dotenv/config');
 require('@nomicfoundation/hardhat-toolbox');
-
+require('@nomicfoundation/hardhat-ethers');
 let RPC_URL = process.env.RPC_URL || '';
 if (RPC_URL && !/^https?:\/\//i.test(RPC_URL)) {
   RPC_URL = `https://${RPC_URL}`;

@@ -16,6 +16,31 @@ import { txExplorerUrl } from '../utils/explorer.js';
 
 const router = Router();
 
+// Debug endpoint to check blockchain connection
+router.get('/health', async (_req, res) => {
+  try {
+    const env = getEnv();
+    const owner = await getOwnerAddress();
+    const wallet = await getWallet();
+    const address = await wallet.getAddress();
+    
+    return res.json({
+      status: 'ok',
+      contract_address: env.CONTRACT_ADDRESS,
+      chain_id: env.CHAIN_ID,
+      owner_address: owner,
+      wallet_address: address,
+      rpc_url: env.RPC_URL.substring(0, 50) + '...' // Truncate for security
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      status: 'error',
+      message: e.message,
+      code: e.code
+    });
+  }
+});
+
 // Write endpoint: client provides hash and metadata
 const writeSchema = z.object({
   hash: z.string().optional(), // Hash computed by client
@@ -107,15 +132,42 @@ router.get('/verify', authenticateJwt, async (req, res) => {
   const { hash, metadata } = parsed.data;
 
   try {
-    // Check if hash exists on blockchain
-    const exists = await checkExists(hash);
-    if (!exists) {
-      return res.json({ verified: false, error: 'hash_not_found' });
+    // Check if hash exists on blockchain and get comprehensive info
+    let checkResult;
+    try {
+      checkResult = await checkExists(hash);
+    } catch (checkError: any) {
+      console.error('checkExists failed:', checkError);
+      return res.status(500).json({ 
+        error: 'blockchain_check_failed', 
+        message: checkError.message || 'Failed to check hash existence',
+        details: checkError.code || 'unknown_code'
+      });
     }
+
+    if (!checkResult.exists) {
+      return res.json({ 
+        verified: false, 
+        error: 'hash_not_found',
+        network: checkResult.network,
+        query: checkResult.query
+      });
+    }
+
+    // Convert BigInt in record to string for JSON serialization
+    const serializedRecord = checkResult.record ? {
+      ...checkResult.record,
+      timestamp: checkResult.record.timestamp.toString()
+    } : undefined;
 
     // If no metadata provided, just check existence
     if (!metadata) {
-      return res.json({ verified: true });
+      return res.json({ 
+        verified: true,
+        record: serializedRecord,
+        network: checkResult.network,
+        query: checkResult.query
+      });
     }
 
     // Parse metadata JSON string
@@ -127,12 +179,29 @@ router.get('/verify', authenticateJwt, async (req, res) => {
     }
 
     // Hash exists, now compare cryptographic commitments
-    const record = await getRecord(hash);
+    let record;
+    try {
+      record = await getRecord(hash);
+      console.log('Fetched record from blockchain:', record);
+    } catch (recordError: any) {
+      console.error('getRecord failed:', recordError);
+      return res.status(500).json({ 
+        error: 'record_fetch_failed', 
+        message: recordError.message || 'Failed to fetch record from blockchain',
+        details: recordError.code || 'unknown_code'
+      });
+    }
+
     const currentMetadataRoot = computeMetadataRoot(metadataObj);
 
     // Compare with stored metadata root
     if (currentMetadataRoot === record.metadataRoot) {
-      return res.json({ verified: true });
+      return res.json({ 
+        verified: true,
+        record: serializedRecord,
+        network: checkResult.network,
+        query: checkResult.query
+      });
     }
 
     // If they don't match, verification failed - return what changed
@@ -140,10 +209,19 @@ router.get('/verify', authenticateJwt, async (req, res) => {
       verified: false,
       error: 'metadata_changed',
       details: 'Metadata cryptographic commitment does not match stored commitment',
-      diffs: deepDiff(record, metadataObj) // Return the diffs
+      diffs: deepDiff(record, metadataObj), // Return the diffs
+      record: serializedRecord,
+      network: checkResult.network,
+      query: checkResult.query
     });
-  } catch (e) {
-    return res.status(500).json({ error: 'verification_failed' });
+  } catch (e: any) {
+    console.error('Verification failed:', e);
+    const message = typeof e?.message === 'string' ? e.message : 'unknown_error';
+    return res.status(500).json({ 
+      error: 'verification_failed', 
+      message,
+      details: e?.code || 'unknown_code'
+    });
   }
 });
 

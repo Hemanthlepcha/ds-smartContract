@@ -48,9 +48,88 @@ export async function writeHashesBatch(hashes: string[], metadataRoots?: string[
   return txHash;
 }
 
-export async function checkExists(hashHex: string): Promise<boolean> {
+export async function checkExists(hashHex: string): Promise<{
+  // Core result
+  exists: boolean;
+  
+  // If exists, get the full record details
+  record?: {
+    metadataRoot: string;
+    timestamp: bigint;
+    timestampDate: string;
+  };
+  
+  // Network information
+  network: {
+    chainId: number;
+    chainName: string;
+    blockNumber: number;
+    contractAddress: string;
+    explorerUrl: string;
+  };
+  
+  // Query metadata
+  query: {
+    hashQueried: string;
+    queryTime: string;
+    queryTimestamp: number;
+  };
+}> {
   const contract = getContract();
-  return await contract.exists(hashHex);
+  const provider = getProvider();
+  const env = getEnv();
+  
+  // Get current block and check existence in parallel
+  const [exists, blockNumber] = await Promise.all([
+    contract.exists(hashHex),
+    provider.getBlockNumber()
+  ]);
+  
+  // If hash exists, get the full record
+  let record;
+  if (exists) {
+    const fullRecord = await contract.getRecord(hashHex);
+    record = {
+      metadataRoot: fullRecord.metadataRoot,
+      timestamp: fullRecord.timestamp,
+      timestampDate: new Date(Number(fullRecord.timestamp) * 1000).toISOString()
+    };
+  }
+  
+  const chainId = parseInt(env.CHAIN_ID, 10);
+  const contractAddress = env.CONTRACT_ADDRESS!;
+  const queryTime = new Date();
+  
+  // Determine chain name
+  let chainName = 'Unknown';
+  switch (chainId) {
+    case 1: chainName = 'Ethereum Mainnet'; break;
+    case 11155111: chainName = 'Sepolia Testnet'; break;
+    case 137: chainName = 'Polygon Mainnet'; break;
+    case 80001: chainName = 'Polygon Mumbai'; break;
+  }
+  
+  // Generate explorer URL
+  const explorerUrl = chainId === 11155111 
+    ? `https://sepolia.etherscan.io/address/${contractAddress}`
+    : `https://etherscan.io/address/${contractAddress}`;
+  
+  return {
+    exists,
+    record,
+    network: {
+      chainId,
+      chainName,
+      blockNumber,
+      contractAddress,
+      explorerUrl
+    },
+    query: {
+      hashQueried: hashHex,
+      queryTime: queryTime.toISOString(),
+      queryTimestamp: queryTime.getTime()
+    }
+  };
 }
 
 // Get full record
