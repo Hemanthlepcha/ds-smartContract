@@ -7,8 +7,7 @@ export const openapiSpec = {
   },
   servers: [
     { url: 'http://localhost:4000' },
-    { url: 'https://ds-smartcontract1.onrender.com' },
-    { url: 'https://66e32e51691b.ngrok-free.app' }
+    { url: 'https://ds-smartcontract-i6m7.onrender.com' }
   ],
   components: {
     securitySchemes: {
