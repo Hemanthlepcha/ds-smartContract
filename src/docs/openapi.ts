@@ -1,4 +1,3 @@
-import { url } from "inspector";
 
 export const openapiSpec = {
   openapi: '3.0.3',
