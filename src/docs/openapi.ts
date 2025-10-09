@@ -1,3 +1,5 @@
+import { url } from "inspector";
+
 export const openapiSpec = {
   openapi: '3.0.3',
   info: {
@@ -7,7 +9,8 @@ export const openapiSpec = {
   },
   servers: [
     { url: 'http://localhost:4000' },
-    { url: 'https://ds-smartcontract-i6m7.onrender.com' }
+    { url: 'https://ds-smartcontract-i6m7.onrender.com' },
+    { url: 'https://prod-eth-smartcontract.bhutanndi.com' }
   ],
   components: {
     securitySchemes: {
